@@ -27,8 +27,8 @@ type Progress struct {
 	// Width is the width of the progress bars
 	Width int
 
-	// Bars is the collection of progress bars
-	Bars []*Bar
+	// Lines is the collection of progress bars
+	Lines []fmt.Stringer
 
 	// RefreshInterval in the time duration to wait for refreshing the output
 	RefreshInterval time.Duration
@@ -47,7 +47,7 @@ func New() *Progress {
 	return &Progress{
 		Width:           Width,
 		Out:             Out,
-		Bars:            make([]*Bar, 0),
+		Lines:           make([]fmt.Stringer, 0),
 		RefreshInterval: RefreshInterval,
 
 		tdone: make(chan bool),
@@ -59,6 +59,11 @@ func New() *Progress {
 // AddBar creates a new progress bar and adds it to the default progress container
 func AddBar(total int) *Bar {
 	return defaultProgress.AddBar(total)
+}
+
+// AddBanner creates a new banner and adds it to the default container
+func AddBanner(text string) *Banner {
+	return defaultProgress.AddBanner(text)
 }
 
 // Start starts the rendering the progress of progress bars using the DefaultProgress. It listens for updates using `bar.Set(n)` and new bars when added using `AddBar`
@@ -97,8 +102,18 @@ func (p *Progress) AddBar(total int) *Bar {
 
 	bar := NewBar(total)
 	bar.Width = p.Width
-	p.Bars = append(p.Bars, bar)
+	p.Lines = append(p.Lines, bar)
 	return bar
+}
+
+// AddBanner creaes a new banner and adds it to the container
+func (p *Progress) AddBanner(text string) *Banner {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	banner := NewBanner(text, p.Width)
+	p.Lines = append(p.Lines, banner)
+	return banner
 }
 
 // Listen listens for updates and renders the progress bars
@@ -123,7 +138,7 @@ func (p *Progress) Listen() {
 func (p *Progress) print() {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-	for _, bar := range p.Bars {
+	for _, bar := range p.Lines {
 		fmt.Fprintln(p.lw, bar.String())
 	}
 	p.lw.Flush()
